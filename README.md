@@ -1,4 +1,4 @@
-# Cybersecurity Portfolio · Security Engineer for Data and AI Platforms
+# Security Engineer for Data and AI Platforms
 
 Hi, I am Shitanshu, and this is my portfolio that shows how I build secure data systems and ML workflows, then turn telemetry into action.
 
