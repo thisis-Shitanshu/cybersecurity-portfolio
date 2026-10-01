@@ -13,41 +13,31 @@ Hi, I am Shitanshu, and this is my portfolio that shows how I build secure data 
 
 ## Showcases
 
-Each folder has a 1 minute README with goal, tools, result, and what I would improve next.
-
-- **OSS Supply-Chain Security: Kubeflow Spark Operator**
-  `showcases/kubeflow-spark-operator-security-audit/`
+- [**OSS Supply-Chain Security, Kubeflow Spark Operator:**](showcases/kubeflow-spark-operator-security-audit/)
   Analyze a production Kubernetes operator image, trace inherited Spark/Hadoop dependency boundaries, investigate vulnerability remediation constraints, and contribute security guidance upstream.
 
 <details>
   <summary>More to come</summary>
 
-- **Security Audit for a Small Business**
-  `showcases/security-audit-small-biz/`
+- [**Security Audit for a Small Business:**](showcases/security-audit-small-biz/)
   Scope an environment, run checks, prioritize risks, and produce a clear report with evidence.
 
-- **Network Security Analysis**
-  `showcases/network-security-analysis/`
+- [**Network Security Analysis:**](showcases/network-security-analysis/)
   Diagram topology, review controls, and recommend segmentation, firewall and encryption improvements.
 
-- **Linux File Permissions Lab**
-  `showcases/linux-file-permissions/`
+- [**Linux File Permissions Lab:**](showcases/linux-file-permissions/)
   Demonstrate safe defaults, ownership, and permission changes with before and after artifacts.
 
-- **SQL Filtering Lab**
-  `showcases/sql-filtering-lab/`
+- [**SQL Filtering Lab:**](showcases/sql-filtering-lab/)
   Build safe, performant filters that answer security questions against synthetic data.
 
-- **Vulnerability Identification**
-  `showcases/vuln-identification/`
+- [**Vulnerability Identification:**](showcases/vuln-identification/)
   Run a guided assessment, capture findings, and propose fixes that balance risk and effort.
 
-- **Incident Handler's Journal**
-  `showcases/incident-handlers-journal/`
+- [**Incident Handler's Journal:**](showcases/incident-handlers-journal/)
   Track timelines, decisions, and communications for simulated events.
 
-- **Log Parsing of a Text File**
-  `showcases/log-parsing-textfile/`
+- [**Log Parsing of a Text File:**](showcases/log-parsing-textfile/)
   Import and parse raw text into structured events for triage and dashboards.
 
 </details>
