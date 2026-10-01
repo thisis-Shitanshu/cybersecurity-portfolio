@@ -1,41 +1,95 @@
 # Kubeflow Spark Operator Supply-Chain Security Analysis
 
-## Goal
+## Overview
 
-Analyze the security boundary of the Kubeflow Spark Operator container image and investigate how vulnerability findings may originate from Spark Operator-owned components, Apache Spark, Hadoop, JVM dependencies, base images, or user-managed workloads.
+This project investigates the security boundary of the Kubeflow Spark Operator controller image.
 
-## Context
+The controller is built on an Apache Spark runtime image, which means vulnerability scans can report issues from several different sources:
 
-This work supports Kubeflow Spark Operator issue [#3143](https://github.com/kubeflow/spark-operator/issues/3143), which focuses on documenting security considerations around the operator image and its upstream dependency surface.
+- Spark Operator
+- Apache Spark
+- Hadoop
+- JVM dependencies
+- the base operating system
 
-## Questions investigated
+The goal was to identify where those findings originate and understand what safe remediation would require.
 
-- What does the Spark Operator image actually contain?
-- Which dependencies are owned by Kubeflow?
-- Which dependencies are inherited from Apache Spark?
-- Can vulnerable JARs be patched independently?
-- What compatibility testing would such a patch require?
-- When should users consider a custom Spark distribution?
-- How can OCI image layering affect vulnerability scanning?
+## Upstream context
+
+This work supports Kubeflow Spark Operator issue
+[#3143](https://github.com/kubeflow/spark-operator/issues/3143).
+
+The issue asks for security guidance around CVEs inherited from the Spark base image.
+
+## What I investigated
+
+- how the Spark Operator controller image is built
+- why the controller contains an Apache Spark runtime
+- which dependencies are inherited from Spark
+- how vulnerability findings differ between the Spark base image and Spark Operator image
+- how shaded dependencies inside Hadoop affect remediation
+- whether scanner-reported fixed versions can be applied safely
+- how dependency changes should be validated
+
+## Key findings
+
+The investigation established that:
+
+1. The Spark Operator controller inherits a large JVM dependency surface from Apache Spark.
+
+2. The Spark Operator build does not modify the JAR files already present in the Spark base image.
+
+3. In a controlled paired scan, all OS and Java findings in the controller image were already present in the Spark base image. The additional findings were associated with the Spark Operator Go binary.
+
+4. Some vulnerable dependencies are embedded inside shaded Hadoop artifacts rather than existing only as standalone JAR files.
+
+5. A scanner-reported fixed version is not necessarily a safe drop-in replacement. Updating a shaded dependency may require coordinated dependency changes, build-tool changes, rebuilding the parent artifact, runtime testing, and rescanning.
+
+## Remediation experiment
+
+A controlled experiment rebuilt Hadoop's `hadoop-client-runtime-3.4.1.jar` with Jackson `2.18.11`.
+
+The experiment uncovered two compatibility problems:
+
+- Hadoop's Maven Shade Plugin `3.4.1` could not process a Java 21 multi-release class from the newer Jackson version.
+- upgrading Jackson changed its JAXB dependency, which interacted with an existing Hadoop dependency exclusion and caused runtime class-resolution failures.
+
+After updating the Shade Plugin and correcting the JAXB dependency path, the rebuilt artifact:
+
+- built successfully
+- passed a targeted JAXB linkage test
+- worked inside the exact Spark 4.0.4 runtime
+- completed a local Spark job
+- reduced the Java vulnerability findings attributed to the Hadoop runtime without adding new findings in the recorded scan snapshot
+
+This was a controlled prototype, not a production patch.
+
+## Documents
+
+- [Architecture](architecture.md)
+- [Findings](findings.md)
+- [Outcome](outcome.md)
+- [References](references.md)
 
 ## Skills demonstrated
 
-- container supply-chain security
-- dependency analysis
-- vulnerability remediation analysis
-- OCI image inspection
-- Java/JAR dependency reasoning
-- Go dependency analysis
+- software supply-chain security
+- container and OCI image analysis
+- vulnerability scanning
+- dependency provenance analysis
+- Maven and Java dependency analysis
+- shaded dependency investigation
 - Kubernetes operator architecture
+- runtime compatibility testing
 - security documentation
-- upstream OSS collaboration
+- open-source collaboration
 
-## Outcome
+## Upstream work
 
-The findings are being used to support security guidance for the Kubeflow Spark Operator project.
+Issue:
+[#3143](https://github.com/kubeflow/spark-operator/issues/3143)
 
-Upstream issue:
-https://github.com/kubeflow/spark-operator/issues/3143
+Pull request:
 
-Upstream PR:
-...
+Pull request:
+[#XXXX](https://github.com/kubeflow/spark-operator/pull/XXXX)

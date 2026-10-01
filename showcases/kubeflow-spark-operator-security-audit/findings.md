@@ -221,7 +221,7 @@ In this case, reaching a prototype with fewer scanner-reported findings and pass
 
 Replacing Spark's standalone Jackson JAR would also not replace this copy because the affected implementation is packaged inside the Hadoop runtime under a relocated namespace.
 
-For this class of inherited shaded dependency, remediation has to account for the parent artifact or distribution boundary and requires compatibility validation rather than arbitrary replacement of individual JARs.
+For inherited shaded dependencies, remediation must consider the parent artifact and its compatibility requirements rather than replacing individual JAR files directly.
 
 **Limitations**
 
@@ -236,13 +236,3 @@ The vulnerability results are specific to the recorded Trivy and database snapsh
 **Status**
 
 Verified
-
-## H-01: Repository-local scanning may not cover the full controller image
-
-The repository's visible OSV workflow scans source dependency manifests. `SECURITY.md` separately states that container images are scanned.
-
-No repository-local image-scanning workflow has been identified yet. Image scanning may be provided elsewhere in the project's release or organization-level infrastructure, so this remains under investigation.
-
-**Status**
-
-Needs further investigation.

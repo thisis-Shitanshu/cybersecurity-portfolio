@@ -1,35 +1,42 @@
-# 🛡️ Security Audit
+# Small Business Security Audit
 
-This project simulates a security audit for a small business environment. It demonstrates how to identify vulnerabilities, assess risks, and suggest improvements using real-world tools and frameworks.
+## Overview
 
----
+This is a simulated security audit for a fictional small-business environment.
 
-## 🔍 Overview
+The exercise covers:
 
-- **Goal:** Assess the security posture of a fictional small business.
-- **Focus Areas:** Asset inventory, access control, network segmentation, and basic compliance.
-- **Frameworks Referenced:** NIST RMF, NIST CSF, OWASP Principles, CISSP Domains
+- asset identification
+- access control
+- network exposure
+- least privilege
+- basic risk assessment
+- security recommendations
 
----
-
-## 📂 Study Material
-
-Please visit [here](fundamentals-and-frameworks.md).
-
----
-
-## 🛠️ Tools Used
+## Tools and methods
 
 - Nmap
-- Nessus (simulated)
-- Firewall configuration review
-- Linux CLI tools (for permissions check)
-- Manual checklist aligned with CISSP and OWASP guidelines
+- Linux command-line tools
+- configuration review
+- manual security checklist
+- NIST and OWASP concepts
 
----
+## Findings
 
-## ✅ Key Takeaways
+The simulated audit identified issues such as:
 
-- Identified unused open ports and weak password policy
-- Recommended MFA and restricted user access based on least privilege
-- Suggested a regular backup schedule and employee security training
+- unnecessary open ports
+- weak password requirements
+- excessive user access
+
+Recommended improvements included:
+
+- enabling MFA
+- applying least privilege
+- restricting unnecessary network access
+- improving backup practices
+- providing basic security awareness training
+
+## Supporting notes
+
+See [Cybersecurity Fundamentals and Frameworks](notes/fundamentals-and-frameworks.md).
