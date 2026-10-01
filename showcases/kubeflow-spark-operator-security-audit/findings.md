@@ -22,7 +22,7 @@ Vulnerability findings for the complete controller image can include components 
 
 **Remediation boundary**
 
-The inherited dependency surface has been partially characterized. Remediation ownership for individual findings is still under investigation.
+The inherited dependency surface has been partially characterized. F-05 demonstrates that remediation of at least one shaded dependency requires changes and compatibility validation at the parent Hadoop/Spark artifact boundary rather than a simple controller-image patch.
 
 **Status**
 
@@ -82,7 +82,7 @@ JAR-level vulnerability findings in the final controller image can be traced to 
 
 **Remediation boundary**
 
-Provenance is established, but the appropriate remediation path for individual Spark dependencies still requires compatibility and upstream-support analysis.
+Provenance is established. F-05 demonstrates that remediation of an inherited shaded dependency can require rebuilding and validating its parent artifact rather than replacing an individual JAR in the Spark Operator image.
 
 **Status**
 
@@ -104,11 +104,11 @@ The scan produced:
 
 Using package type, package name, installed version, and vulnerability ID as the finding identity:
 
-- base unique findings: 4,805
-- operator unique findings: 4,824
-- shared findings: 4,805
-- base-only findings: 0
-- operator-only findings: 19
+- base unique finding tuples: 4,805
+- operator unique finding tuples: 4,824
+- shared finding tuples: 4,805
+- base-only finding tuples: 0
+- operator-only finding tuples: 19
 
 All 19 operator-only findings were associated with the `usr/bin/spark-operator` Go binary.
 
@@ -153,49 +153,85 @@ Scanner findings do not by themselves establish exploitability or runtime reacha
 
 Verified
 
-## F-05: Vulnerable JVM components may be shaded or present in multiple Spark distribution artifacts
+## F-05: Scanner fixed versions are not drop-in remediations for shaded Hadoop dependencies
 
 **Observation**
 
-The Java vulnerability scan identified some dependency versions at more than one physical location in the Spark distribution.
+The exact Spark 4.0.4 base image contains `hadoop-client-runtime-3.4.1.jar`. Trivy attributed Jackson Core `2.12.7` and Jackson Databind `2.12.7.1` findings to this artifact.
 
-For example, Trivy detected `io.netty:netty-handler` version `4.1.118.Final` both in:
+Inspection of the Hadoop 3.4.1 source and Maven dependency graph established the dependency path:
 
-- `opt/spark/jars/netty-handler-4.1.118.Final.jar`
-- `opt/spark/jars/connect-repl/spark-connect-client-jvm_2.13-4.0.4.jar`
+`hadoop-client-runtime:3.4.1`
+→ `hadoop-client:3.4.1`
+→ `hadoop-common:3.4.1`
+→ `jackson-databind:2.12.7.1`
 
-Trivy also detected `com.fasterxml.jackson.core:jackson-databind` version `2.12.7.1` inside:
+The Hadoop runtime build relocates `com/` packages under `org.apache.hadoop.shaded.com/`. Inspection of the released artifact confirmed the embedded Maven metadata and relocated Jackson implementation, including:
 
-- `opt/spark/jars/hadoop-client-runtime-3.4.1.jar`
+`org/apache/hadoop/shaded/com/fasterxml/jackson/databind/ObjectMapper.class`
 
-while Spark separately contains:
+The frozen Trivy snapshot reported 13 Jackson vulnerability records against this Hadoop runtime:
 
-- `opt/spark/jars/jackson-databind-2.18.6.jar`
+- 3 against `jackson-core:2.12.7`
+- 10 against `jackson-databind:2.12.7.1`
 
-Inspection of `hadoop-client-runtime-3.4.1.jar` confirmed that Jackson classes are physically included under the relocated namespace:
+**Controlled remediation experiment**
 
-`org/apache/hadoop/shaded/com/fasterxml/jackson/...`
+A Databind-only override to a scanner-listed fixed version produced a mixed Jackson dependency family: Databind `2.18.11` with Core and Annotations `2.12.7`.
 
-This establishes that the Hadoop client runtime contains a shaded copy of Jackson rather than only referring to the standalone Spark Jackson JAR.
+A coordinated Jackson `2.18.11` override aligned the pre-shading dependency graph, but packaging with Hadoop's existing Maven Shade Plugin `3.4.1` failed while processing a Java 21 multi-release class from Jackson Core:
 
-The Java scan contained:
+`Unsupported class file major version 65`
 
-- 173 vulnerability occurrences
-- 135 unique package/version/vulnerability tuples
-- 99 distinct vulnerability or advisory IDs
-- 44 distinct package/version pairs
+Changing only the Shade Plugin version from `3.4.1` to `3.5.0` allowed the shaded runtime artifact to build successfully.
+
+The first successfully packaged `2.18.11` candidate still contained a compatibility defect. Jackson `2.18.11` changed the JAXB dependency from:
+
+`jakarta.xml.bind:jakarta.xml.bind-api`
+
+to:
+
+`javax.xml.bind:jaxb-api`
+
+Hadoop 3.4.1 already excludes `javax.xml.bind:jaxb-api` from `hadoop-client-runtime`. As a result, the candidate contained the relocated Jackson JAXB module but zero relocated `javax.xml.bind` classes.
+
+The packaged `JaxbAnnotationIntrospector` still referenced those classes. Runtime method resolution failed with `NoClassDefFoundError`, including under the exact Spark 4.0.4 Java 17 runtime.
+
+Removing only that JAXB exclusion caused Hadoop dependency management to resolve `javax.xml.bind:jaxb-api:2.2.11`. The rebuilt artifact contained 113 relocated JAXB classes and the same targeted runtime-resolution probe passed.
+
+This repaired prototype was then installed into a derived image based on the exact Spark 4.0.4 digest. In that image:
+
+- Spark 4.0.4 started successfully on Java 17.0.19
+- a local Spark job completed successfully
+- Hadoop local filesystem initialization succeeded
+- the targeted JAXB linkage probe succeeded
+
+The whole-image scan using the same pinned Trivy version and frozen vulnerability databases changed from:
+
+- OS findings: `4670 → 4670`
+- Java findings: `173 → 160`
+
+The exact normalized Java manifest diff contained 13 removed findings and zero added findings. All 13 removals were the Jackson findings attributed to `opt/spark/jars/hadoop-client-runtime-3.4.1.jar`.
 
 **Security implication**
 
-Replacing a standalone dependency JAR may not eliminate all instances of an affected component from the Spark distribution.
+A scanner's `FixedVersion` field is not, by itself, a safe remediation instruction for a shaded dependency.
 
-A component may also exist inside a shaded or bundled parent artifact. For example, replacing Spark's standalone Jackson JAR would not automatically replace the Jackson implementation shaded into `hadoop-client-runtime-3.4.1.jar`.
+In this case, reaching a prototype with fewer scanner-reported findings and passing the targeted runtime checks required coordinated dependency changes, a build-tool upgrade, analysis of relocation rules, analysis of changed transitive dependency coordinates, adjustment of an existing exclusion, runtime linkage testing, Spark-level smoke testing, and a final whole-image rescan.
 
-Similarly, the same Netty component can be represented both by a standalone Netty JAR and inside another Spark artifact.
+Replacing Spark's standalone Jackson JAR would also not replace this copy because the affected implementation is packaged inside the Hadoop runtime under a relocated namespace.
 
-**Remediation boundary**
+For this class of inherited shaded dependency, remediation has to account for the parent artifact or distribution boundary and requires compatibility validation rather than arbitrary replacement of individual JARs.
 
-Safely changing a shaded dependency may require rebuilding the parent artifact rather than replacing a single file. Compatibility analysis must therefore consider the parent project, dependency versions, relocation rules, build process, and regression-test requirements.
+**Limitations**
+
+This experiment does not establish exploitability or runtime reachability of the original scanner findings.
+
+The repaired artifact was produced through the `hadoop-client-runtime` module packaging path using released Hadoop 3.4.1 dependencies. It was not validated through a complete Hadoop source reactor build or the full Hadoop and Spark test suites.
+
+The repaired runtime contained 113 relocated JAXB classes compared with 119 in the original artifact, so the two artifacts are not structurally identical.
+
+The vulnerability results are specific to the recorded Trivy and database snapshot. Replacing a file in a later OCI layer also does not imply that the original bytes have been physically removed from inherited lower layers.
 
 **Status**
 
