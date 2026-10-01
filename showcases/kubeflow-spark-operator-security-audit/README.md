@@ -90,6 +90,4 @@ Issue:
 [#3143](https://github.com/kubeflow/spark-operator/issues/3143)
 
 Pull request:
-
-Pull request:
-[#XXXX](https://github.com/kubeflow/spark-operator/pull/XXXX)
+[#3214](https://github.com/kubeflow/spark-operator/pull/3214)

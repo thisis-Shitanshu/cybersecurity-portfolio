@@ -32,4 +32,4 @@ It was not treated as a production-ready Hadoop patch because the complete Hadoo
 
 ## Upstream pull request
 
-[#XXXX](https://github.com/kubeflow/spark-operator/pull/XXXX)
+[#3214](https://github.com/kubeflow/spark-operator/pull/3214)
