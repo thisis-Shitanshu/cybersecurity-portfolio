@@ -236,3 +236,144 @@ The vulnerability results are specific to the recorded Trivy and database snapsh
 **Status**
 
 Verified
+
+## F-06: Controller base-image selection can substantially reduce scanner-visible vulnerability surface
+
+**Observation**
+
+The Spark Operator controller image inherits most of its runtime surface from the selected Spark base image. This creates an opportunity to reduce scanner-visible findings through base-image selection without changing the Spark Operator binary itself.
+
+A controlled comparison was performed across the current Spark 4.0.4 standard image and thinner Scala-only Spark variants.
+
+All controller images were built from the same Spark Operator source revision:
+
+`927676cd94197a772374c73351398df0a79625db`
+
+The resulting `/usr/bin/spark-operator` binary was identical across all tested controller images:
+
+`7c1f2c2cb988a4c4a3fd23e057852ce256307f0a9d2f8f1a4ee95a14d64fd29d`
+
+### Compared controller images
+
+| Controller base                        | Final image size | OS findings | Java findings | Go findings | Raw findings | Distinct vulnerability IDs |
+| -------------------------------------- | ---------------: | ----------: | ------------: | ----------: | -----------: | -------------------------: |
+| Apache Spark 4.0.4 standard            |    798,548,576 B |       4,670 |           173 |          19 |        4,862 |                      4,532 |
+| Apache Spark 4.0.4 Scala-only          |    684,546,653 B |         258 |           173 |          19 |          450 |                        238 |
+| Apache Spark 4.2.0 Scala-only          |    712,013,475 B |         285 |           118 |          19 |          422 |                        203 |
+| Docker Official Spark 4.2.0 Scala-only |    711,688,209 B |          85 |           118 |          19 |          222 |                        112 |
+
+> The scans used the same frozen Trivy 0.74.0 vulnerability databases used elsewhere in this audit. Counts represent raw scanner findings/occurrences, not independently verified exploitable vulnerabilities.
+
+**Controlled 4.0.4 comparison**
+
+The Apache Spark 4.0.4 standard and Scala-only images retained the same major Spark runtime stack:
+
+- Spark 4.0.4
+- Scala 2.13.16
+- Java 17.0.19
+- Hadoop client API/runtime 3.4.1
+- 276 Spark JARs
+- `/opt/spark` as `SPARK_HOME`
+- UID/GID 185 for the `spark` user
+
+The Scala-only image did not include Python.
+
+Moving from the standard to Scala-only base reduced final-controller raw findings from 4,862 to 450, approximately 90.7%, while Java findings remained unchanged at 173 and Go binary findings remained unchanged at 19.
+
+This indicates that the reduction was primarily associated with the smaller OS package surface rather than changes to the inherited Spark/Hadoop Java dependency set.
+
+**Spark 4.2 comparison**
+
+The Apache and Docker Official Spark 4.2 Scala-only images both provided:
+
+- Spark 4.2.0
+- Spark revision `32f7299601108917fb01920a54e084595b7b3bf8`
+- Scala 2.13.18
+- Hadoop client API/runtime 3.5.0
+- 276 Spark JARs
+- no Python installation
+
+The Apache image used Java 21.0.11, while the Docker Official image used Java 21.0.12.1.
+
+The Docker Official Spark 4.2 Scala-only controller produced 222 raw findings:
+
+- 85 OS findings
+- 118 Java findings
+- 19 Go binary findings
+- 112 distinct vulnerability IDs
+
+This was the smallest scanner-visible result among the controller images tested.
+
+**Functional validation**
+
+The tested Scala-only controller images successfully preserved the runtime contract required by the Spark Operator Dockerfile and controller submission path, including:
+
+- `spark-submit`
+- JVM runtime
+- Bash
+- `apt-get`
+- `libnss_wrapper`
+- Spark runtime JARs
+- execution as UID/GID 185
+- installation and execution of `catatonit`
+
+Local SparkPi execution completed successfully for the tested final controller images.
+
+The Apache Spark 4.0.4 Scala-only controller also successfully submitted and completed a SparkApplication on Kubernetes.
+
+For the Spark 4.2 candidates, the workload image was held constant at the exact Apache Spark 4.2.0 digest:
+
+`docker.io/apache/spark:4.2.0@sha256:fc64959c04bd87b0ac686be9aaa9008b69cdb1afc695400528279c8b01f43d89`
+
+This allowed the controller base image to remain the primary variable during the Kubernetes comparison.
+
+The Docker Official Spark 4.2 Scala-only controller successfully:
+
+- started the Spark Operator controller
+- started the Spark Operator webhook
+- generated and stored webhook TLS material
+- updated mutating and validating webhook CA bundles
+- served the admission webhook as UID/GID 185
+- operated with admission `failurePolicy: Fail`
+- admitted the SparkApplication
+- submitted the Spark workload
+- created the driver and executor
+- completed SparkPi with driver exit code 0
+- reached SparkApplication state `COMPLETED`
+
+The webhook-enabled validation completed without observed webhook errors.
+
+**Spark 4.2 compatibility observation**
+
+Spark 4.2 introduced an additional Kubernetes NetworkPolicy feature step in the submission path.
+
+With the current test deployment's controller RBAC, an unmodified Spark 4.2 submission failed because the controller service account could not patch:
+
+`networkpolicies.networking.k8s.io`
+
+The same Spark 4.2 controller and workload completed successfully after excluding only:
+
+`org.apache.spark.deploy.k8s.features.NetworkPolicyFeatureStep`
+
+This separates the observed failure from the base-image experiment: the tested Spark 4.2 controller runtime was functional, while the default Spark 4.2 Kubernetes behavior exposed an additional RBAC requirement in the current chart configuration.
+
+This compatibility behavior should be evaluated separately from the security image-selection finding.
+
+**Security interpretation**
+
+The experiment demonstrates that image selection can substantially change scanner-visible controller exposure without modifying the Spark Operator binary.
+
+It does not establish that:
+
+- every reported vulnerability is exploitable in the Spark Operator context
+- fewer scanner findings directly imply proportionally lower security risk
+- Scala-only images are drop-in replacements for every Spark Operator workflow
+- Python-dependent integration or end-to-end tests remain compatible
+- Spark 4.2 is fully compatible with the current chart without additional configuration or RBAC changes
+- the lowest-count image should automatically become the upstream default
+
+The result instead supports treating the Spark base image as an explicit security and compatibility boundary. A smaller runtime image may reduce inherited package exposure, but image selection must be evaluated together with Spark version, Java version, Hadoop dependencies, supported workloads, admission behavior, and Kubernetes permissions.
+
+**Status:**
+
+Confirmed through controlled image comparison and functional validation
